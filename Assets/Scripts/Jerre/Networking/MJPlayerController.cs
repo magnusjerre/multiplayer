@@ -47,7 +47,7 @@ namespace Jerre.Networking
         public ParticleSystem hitSuccessParticles, hitFailureParticles;
         public LineRenderer lineRenderer;
         public Transform muzzle;
-        public Rocket rocketPrefab;
+        public Rocket rocketPrefab, bombPrefab;
 
         //Rewind variables, prefix rew
         private Vector3 rewResetPosition;
@@ -58,6 +58,10 @@ namespace Jerre.Networking
         private int direction = 1;
         private float autoTimeToMove = 2f, elapsedAuto;
 
+        [SyncVar(hook = "ChangePickup")]
+        private PickupEnum currentPickup = PickupEnum.BOMB;
+        private GameObject pickupIndicator;
+        public Material rocketPickupMaterial, bombPickupMaterial;
 
         void Awake() 
         {
@@ -79,8 +83,13 @@ namespace Jerre.Networking
             );
         }
 
-        // Use this for initialization
-        void Start()
+		public override void OnStartAuthority()
+		{
+            pickupIndicator = GameObject.FindWithTag("PickupIndicator");
+		}
+
+		// Use this for initialization
+		void Start()
         {
             characterController = GetComponent<CharacterController>();
         }
@@ -117,7 +126,7 @@ namespace Jerre.Networking
                     if (playerInputHistory.Peek().playerAction == PlayerAction.PRIMARY) {
                         Shoot();
                     } else if (playerInputHistory.Peek().playerAction == PlayerAction.SECONDARY) {
-                        ShootRocket();
+                        UserSecondary();
                     }
                 }
                 characterController.Move(playerInput.MoveDir3D * speed * deltaTime);
@@ -227,7 +236,7 @@ namespace Jerre.Networking
                     if (playerInput.playerAction == PlayerAction.PRIMARY) {
                         Shoot();
                     } else if (playerInput.playerAction == PlayerAction.SECONDARY) {
-                        ShootRocket();
+                        UserSecondary();
                     }
                 }
 
@@ -465,10 +474,17 @@ namespace Jerre.Networking
             }
         }
 
-        private void ShootRocket() {
-            var rocket = Instantiate(rocketPrefab, muzzle.position + muzzle.forward * 1.5f, muzzle.rotation);
-            rocket.ownerConnectionId = connectionToClient.connectionId;
-            NetworkServer.Spawn(rocket.gameObject);
+        private void UserSecondary() {
+
+            if (currentPickup == PickupEnum.ROCKET)
+            {
+                var rocket = Instantiate(rocketPrefab, muzzle.position + muzzle.forward * 1.5f, muzzle.rotation);
+                rocket.ownerConnectionId = connectionToClient.connectionId;
+                NetworkServer.Spawn(rocket.gameObject);
+            } else if (currentPickup == PickupEnum.BOMB) {
+                var bomb = Instantiate(bombPrefab, transform.position - transform.forward * 1.5f, transform.rotation);
+                NetworkServer.Spawn(bomb.gameObject);
+            }
         }
 
         [ClientRpc(channel = 1)]
@@ -489,7 +505,29 @@ namespace Jerre.Networking
             }
         }
 
+        [Command]
+        public void CmdChangePickup(PickupEnum pickup)
+        {
+            this.currentPickup = pickup;
+        }
 
+        public void ChangePickup(PickupEnum pickup) {
+            if (hasAuthority) {
+                if (pickup == PickupEnum.ROCKET)
+                {
+                    Debug.Log("PickupIndicator: " + pickupIndicator);
+                    var meshRenderer = pickupIndicator.GetComponent<MeshRenderer>();
+                    Debug.Log("PickupRenderer.MeshRenderer: " + meshRenderer);
+                    meshRenderer.material = rocketPickupMaterial;
+                }
+                else if (pickup == PickupEnum.BOMB) {
+                    Debug.Log("PickupIndicator: " + pickupIndicator);
+                    var meshRenderer = pickupIndicator.GetComponent<MeshRenderer>();
+                    Debug.Log("PickupRenderer.MeshRenderer: " + meshRenderer);
+                    meshRenderer.material = bombPickupMaterial;
+                }
+            }
+        }
 
 
         class PlayerInputForPacket {

@@ -272,6 +272,11 @@ MonoBehaviour:
   muzzle: {fileID: 4202570934940520}
   rocketPrefab: {fileID: 114247838618375698, guid: 97e8e9507bafe4144ae29e6d0cd49d08,
     type: 2}
+  bombPrefab: {fileID: 114181041521113404, guid: 4f785f5b503d84f1c931bb09c25e7774,
+    type: 2}
+  rocketPickupMaterial: {fileID: 2100000, guid: 7698eb4d6e8224719999242258f095f1,
+    type: 2}
+  bombPickupMaterial: {fileID: 2100000, guid: f85d5ba97c2ca44c185f832d2e171712, type: 2}
 --- !u!136 &136164497034803904
 CapsuleCollider:
   m_ObjectHideFlags: 1

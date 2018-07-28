@@ -66,6 +66,8 @@
     <Compile Include="Assets\Scripts\Jerre\Networking\Messages\PlayerToServerMessage.cs" />
     <Compile Include="Assets\Scripts\Jerre\Networking\Messages\ServerToPlayerMessage.cs" />
     <Compile Include="Assets\Scripts\Jerre\Networking\MJPlayerController.cs" />
+    <Compile Include="Assets\Scripts\Jerre\Networking\Pickup.cs" />
+    <Compile Include="Assets\Scripts\Jerre\Networking\PickupEnum.cs" />
     <Compile Include="Assets\Scripts\Jerre\Networking\PlayerAction.cs" />
     <Compile Include="Assets\Scripts\Jerre\Networking\PlayerInput.cs" />
     <Compile Include="Assets\Scripts\Jerre\Networking\Rocket.cs" />
