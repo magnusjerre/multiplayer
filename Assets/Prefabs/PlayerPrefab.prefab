@@ -261,7 +261,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e562bdb4056b4e729fb531c8b1bec63, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 2
+  speed: 4
+  inertia: 5
+  inertiaRotation: 5
   shootDistance: 4
   hitSuccessParticles: {fileID: 198923142078529234, guid: b2b97b5956cf142d490ba939b3973a57,
     type: 2}

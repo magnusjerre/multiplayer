@@ -39,7 +39,8 @@ namespace Jerre.Networking
 
 		private CharacterController characterController;
 
-        public float speed = 2f;
+        public float speed = 2f, inertia = 1f, inertiaRotation = 10f;
+        private Vector3 oldSpeedVector = Vector3.zero;
 
         private float cTimeSinceInputProcessed;
 
@@ -109,8 +110,7 @@ namespace Jerre.Networking
                     var timeRemainingForOutdatedInput = timeBetweenInputFetching -
                         (timeSinceInputFetched - Time.deltaTime);
                     deltaTime -= timeRemainingForOutdatedInput;
-                    characterController.Move(
-                        playerInput.MoveDir3D * speed * timeRemainingForOutdatedInput);
+                    Move(playerInput.MoveDir3D, timeRemainingForOutdatedInput);
                     RotateTo(playerInput.LookDir3D);
 
                     var inputSequence = nextInputSequence++;
@@ -129,7 +129,7 @@ namespace Jerre.Networking
                         UserSecondary();
                     }
                 }
-                characterController.Move(playerInput.MoveDir3D * speed * deltaTime);
+                Move(playerInput.MoveDir3D, deltaTime);
                 RotateTo(playerInput.LookDir3D);
 
                 if (timeSinceLastPacketSent >= timeBetweenPacketsFromServerToClient)
@@ -158,9 +158,7 @@ namespace Jerre.Networking
                     );
                     for (var i = 0; i < inputsToReconcile.Length; i++) {
                         var input = inputsToReconcile[i];
-                        characterController.Move(
-                            input.MoveDir3D * speed * timeBetweenInputFetching
-                        );
+                        Move(input.MoveDir3D, timeBetweenInputFetching);
                         RotateTo(input.LookDir3D);
                         var originalInput = playerInputHistory.FindBy(pi => pi.inputSequence == input.inputSequence);
                         playerInputHistory.ReplaceByFilter(
@@ -172,7 +170,8 @@ namespace Jerre.Networking
                                 transform.rotation,
                                 originalInput.moveDir,
                                 originalInput.lookDir,
-                                originalInput.playerAction
+                                originalInput.playerAction,
+                                originalInput.speed
                             )
                         );
                     }
@@ -182,8 +181,7 @@ namespace Jerre.Networking
                     var timeRemainingForOutdatedInput = timeBetweenInputFetching - 
                         (timeSinceInputFetched - Time.deltaTime);
                     deltaTime -= timeRemainingForOutdatedInput;
-                    characterController.Move(
-                        playerInput.MoveDir3D * speed * timeRemainingForOutdatedInput);
+                    Move(playerInput.MoveDir3D, timeRemainingForOutdatedInput);
                     RotateTo(playerInput.LookDir3D);
 
                     playerInputHistory.Push(
@@ -191,7 +189,7 @@ namespace Jerre.Networking
                     );
 					timeSinceInputFetched -= timeBetweenInputFetching;
                 }
-                characterController.Move(playerInput.MoveDir3D * speed * deltaTime);
+                Move(playerInput.MoveDir3D, deltaTime);
                 RotateTo(playerInput.LookDir3D);
 
                 if (timeSinceLastPacketSent >= timeBetweenPacketsFromClientToServer) {
@@ -216,8 +214,7 @@ namespace Jerre.Networking
                         timeSinceInputFetched - Time.deltaTime);
                     deltaTime -= timeRemainingForOutdatedInput;
 
-                    characterController.Move(
-                        playerInput.MoveDir3D * speed * timeRemainingForOutdatedInput);
+                    Move(playerInput.MoveDir3D, timeRemainingForOutdatedInput);
                     RotateTo(playerInput.LookDir3D);
 
                     if ((transform.position - playerInput.position).sqrMagnitude < Constants.MAX_DISCREPANCY_FROM_CLIENT) {
@@ -231,6 +228,7 @@ namespace Jerre.Networking
                         transform.rotation));
 
                     playerInput = receivedPlayerInputs.FindBy((pi) => pi.inputSequence > currentInputSequenceToProcess);
+                    oldSpeedVector = playerInput.speed;
                     currentInputSequenceToProcess = playerInput.inputSequence;
                     saTimeSinceInputProcessed -= timeBetweenInputFetching;
                     if (playerInput.playerAction == PlayerAction.PRIMARY) {
@@ -240,7 +238,7 @@ namespace Jerre.Networking
                     }
                 }
 
-                characterController.Move(playerInput.MoveDir3D * speed * deltaTime);
+                Move(playerInput.MoveDir3D, deltaTime);
                 RotateTo(playerInput.LookDir3D);
 
                 if (saTimeSinceLastPacketSent >= timeBetweenPacketsFromServerToClient) {
@@ -270,6 +268,19 @@ namespace Jerre.Networking
                 transform.position = Vector3.Lerp(oldest.position, nextOldest.position, cTimeSinceInputProcessed / maxinterval);
                 transform.rotation = Quaternion.Lerp(oldest.rotation, nextOldest.rotation, cTimeSinceInputProcessed / maxinterval);
             }
+        }
+
+
+        private void Move(Vector3 direction, float deltaTime) {
+            var newSpeedVector = direction * speed * deltaTime;
+            var angle = Mathf.Clamp(Vector3.Angle(oldSpeedVector.normalized, newSpeedVector.normalized), 5, 175);
+            float rotationalInertia = (1f - angle / 180f) * inertiaRotation;
+            rotationalInertia = angle > 75 ? 0.1f / inertiaRotation : 1f;
+            rotationalInertia = angle > 150 ? 1f / inertiaRotation : 1f;
+            float totalInertia = inertia * rotationalInertia;
+            var resultingVector = Vector3.Lerp(oldSpeedVector, newSpeedVector, totalInertia * deltaTime);
+            characterController.Move(resultingVector);
+            oldSpeedVector = resultingVector;
         }
 
         private void RotateTo(Vector3 lookRotation) {
@@ -330,7 +341,8 @@ namespace Jerre.Networking
                     transform.rotation,
                     new Vector2(direction, 0),
                     new Vector2(direction, 0),
-                    PlayerAction.NONE);
+                    PlayerAction.NONE,
+                    oldSpeedVector);
             }
             //var x = Input.GetAxis("Horizontal");
             var x = Input.GetKey(KeyCode.A) ? -1 : Input.GetKey(KeyCode.D) ? 1 : 0;
@@ -360,7 +372,8 @@ namespace Jerre.Networking
                                    transform.rotation, 
                                    new Vector2(x, y).normalized, 
                                    new Vector2(x, y).normalized,
-                                   playerAction);
+                                   playerAction,
+                                   oldSpeedVector);
         }
 
         private PlayerInput[] AssemblePlayerInputs(int latestAckedPacketSequnce) {
@@ -533,6 +546,7 @@ namespace Jerre.Networking
         class PlayerInputForPacket {
             public int inputSequence, packetSequence;
             public Vector3 position;
+            public Vector3 speed;
             public Quaternion rotation;
             public Vector2 moveDir, lookDir;
             public Vector3 MoveDir3D {
@@ -543,7 +557,7 @@ namespace Jerre.Networking
             }
             public PlayerAction playerAction;
 
-            public PlayerInputForPacket(int inputSequence, int packetSequence, Vector3 position, Quaternion rotation, Vector2 moveDir, Vector2 lookDir, PlayerAction playerAction)
+            public PlayerInputForPacket(int inputSequence, int packetSequence, Vector3 position, Quaternion rotation, Vector2 moveDir, Vector2 lookDir, PlayerAction playerAction, Vector3 speed)
             {
                 this.inputSequence = inputSequence;
                 this.packetSequence = packetSequence;
@@ -552,18 +566,19 @@ namespace Jerre.Networking
                 this.moveDir = moveDir;
                 this.lookDir = lookDir;
                 this.playerAction = playerAction;
+                this.speed = speed;
             }
 
             public PlayerInput ToPlayerInput() {
                 return new PlayerInput(
-                    inputSequence, position, rotation, moveDir, lookDir, playerAction);
+                    inputSequence, position, rotation, moveDir, lookDir, playerAction, speed);
             }
 
             public override string ToString()
             {
                 return string.Format(
-                    "PlayerInput(inputSequence: {0}, packetSequence: {1}, position: {2}, rotation: {3}, moveDir: {4}, lookDir: {5}, playerAction: {6})",
-                    inputSequence, packetSequence, position, rotation, moveDir, lookDir, playerAction
+                    "PlayerInput(inputSequence: {0}, packetSequence: {1}, position: {2}, rotation: {3}, moveDir: {4}, lookDir: {5}, playerAction: {6}, speed: {7})",
+                    inputSequence, packetSequence, position, rotation, moveDir, lookDir, playerAction, speed
                 );
             }
         }
