@@ -56,9 +56,8 @@ namespace Jerre.Networking
         private bool canReset = false;
 
         //Reconciliation variables
-        private Vector3 serverPredictedPosition;
-        private Quaternion serverPredictedRotation;
         public float lerpAmountForReconciliation = 1/3f;
+        private PredictionServer predictionServer;
 
         private bool autoControlPlayer;
         private int direction = 1;
@@ -98,8 +97,7 @@ namespace Jerre.Networking
 		void Start()
         {
             characterController = GetComponent<CharacterController>();
-            serverPredictedPosition = transform.position;
-            serverPredictedRotation = transform.rotation;
+            predictionServer = new PredictionServer(transform.position, transform.rotation, Vector3.zero);
         }
 
         // Update is called once per frame
@@ -127,7 +125,8 @@ namespace Jerre.Networking
                     validatedPlayerInputs.Push(new ValidatedPlayerInput(
                         inputSequence,
                         transform.position,
-                        transform.rotation
+                        transform.rotation,
+                        oldSpeedVector
                     ));
                     timeSinceInputFetched -= timeBetweenInputFetching;
                     if (playerInputHistory.Peek().playerAction == PlayerAction.PRIMARY) {
@@ -157,12 +156,14 @@ namespace Jerre.Networking
                 var deltaTime = Time.deltaTime;
                 var clientPosition = transform.position;   // Po
                 var clientRotation = transform.rotation;
+                var originalOldSpeedVector = oldSpeedVector;
                 if (shouldReconcileInput) {
                     shouldReconcileInput = false;
                     var latestValidatedPlayerInput = 
                         validatedPlayerInputsFromServer.Peek();
                     transform.position = latestValidatedPlayerInput.position;
                     transform.rotation = latestValidatedPlayerInput.rotation;
+                    oldSpeedVector = latestValidatedPlayerInput.speed;
                     var inputsToReconcile = playerInputHistory.GetArrayByFilter(
                         pi => pi.inputSequence > latestValidatedPlayerInput.inputSequence
                     );
@@ -171,10 +172,9 @@ namespace Jerre.Networking
                         Move(input.MoveDir3D, timeBetweenInputFetching);
                         RotateTo(input.LookDir3D);
                     }
-                    serverPredictedPosition = transform.position;
-                    serverPredictedRotation = transform.rotation;
                     transform.position = clientPosition;
                     transform.rotation = clientRotation;
+                    oldSpeedVector = originalOldSpeedVector;
 				}
 
                 if (timeSinceInputFetched >= timeBetweenInputFetching) {
@@ -218,7 +218,9 @@ namespace Jerre.Networking
                     validatedPlayerInputs.Push(new ValidatedPlayerInput(
                         playerInput.inputSequence,
                         transform.position,
-                        transform.rotation));
+                        transform.rotation, 
+                        oldSpeedVector
+                    ));
 
                     playerInput = receivedPlayerInputs.FindBy((pi) => pi.inputSequence > currentInputSequenceToProcess);
                     if (playerInput.Equals(default(PlayerInput))) {
@@ -272,33 +274,33 @@ namespace Jerre.Networking
             RotateTo(playerInput.LookDir3D);
             var clientPredictedPosition = transform.position;
             var clientPredictedRotation = transform.rotation;
-
+            var tempSpeed = oldSpeedVector;
             //Move using server prediction    
-            transform.position = serverPredictedPosition;
-            transform.rotation = serverPredictedRotation;
+            transform.position = predictionServer.position;
+            transform.rotation = predictionServer.rotation;
+            oldSpeedVector = predictionServer.speed;
             Move(playerInput.MoveDir3D, deltaTime);
             RotateTo(playerInput.LookDir3D);
-            serverPredictedPosition = transform.position;
-            serverPredictedRotation = transform.rotation;
+            predictionServer = new PredictionServer(transform.position, transform.rotation, oldSpeedVector);
 
-            var lerpedPredictedPos = Vector3.Lerp(clientPredictedPosition, serverPredictedPosition, lerpAmountForReconciliation);
-            var lerpedPredictedRot = Quaternion.Lerp(clientPredictedRotation, serverPredictedRotation, lerpAmountForReconciliation);
+            var lerpedPredictedPos = Vector3.Lerp(clientPredictedPosition, predictionServer.position, lerpAmountForReconciliation);
+            var lerpedPredictedRot = Quaternion.Lerp(clientPredictedRotation, predictionServer.rotation, lerpAmountForReconciliation);
             transform.position = lerpedPredictedPos;
             transform.rotation = lerpedPredictedRot;
+            oldSpeedVector = Vector3.Lerp(tempSpeed, predictionServer.speed, lerpAmountForReconciliation);
         }
-
 
         private void Move(Vector3 direction, float deltaTime) {
             var newSpeedVector = direction * speed * deltaTime;
-            characterController.Move(newSpeedVector);
-            // var angle = Mathf.Clamp(Vector3.Angle(oldSpeedVector.normalized, newSpeedVector.normalized), 5, 175);
-            // float rotationalInertia = (1f - angle / 180f) * inertiaRotation;
-            // rotationalInertia = angle > 75 ? 0.1f / inertiaRotation : 1f;
-            // rotationalInertia = angle > 150 ? 1f / inertiaRotation : 1f;
-            // float totalInertia = inertia * rotationalInertia;
-            // var resultingVector = Vector3.Lerp(oldSpeedVector, newSpeedVector, totalInertia * deltaTime);
-            // characterController.Move(resultingVector);
-            // oldSpeedVector = resultingVector;
+            // characterController.Move(newSpeedVector);
+            var angle = Mathf.Clamp(Vector3.Angle(oldSpeedVector.normalized, newSpeedVector.normalized), 5, 175);
+            float rotationalInertia = (1f - angle / 180f) * inertiaRotation;
+            rotationalInertia = angle > 75 ? 0.1f / inertiaRotation : 1f;
+            rotationalInertia = angle > 150 ? 1f / inertiaRotation : 1f;
+            float totalInertia = inertia * rotationalInertia;
+            var resultingVector = Vector3.Lerp(oldSpeedVector, newSpeedVector, totalInertia * deltaTime);
+            characterController.Move(resultingVector);
+            oldSpeedVector = resultingVector;
         }
 
         private void RotateTo(Vector3 lookRotation) {
@@ -598,6 +600,18 @@ namespace Jerre.Networking
                     "PlayerInput(inputSequence: {0}, packetSequence: {1}, position: {2}, rotation: {3}, moveDir: {4}, lookDir: {5}, playerAction: {6}, speed: {7})",
                     inputSequence, packetSequence, position, rotation, moveDir, lookDir, playerAction, speed
                 );
+            }
+        }
+
+        class PredictionServer {
+            public Vector3 position;
+            public Quaternion rotation;
+            public Vector3 speed;
+
+            public PredictionServer(Vector3 position, Quaternion rotation, Vector3 speed) {
+                this.position = position;
+                this.rotation = rotation;
+                this.speed = speed;
             }
         }
     }
