@@ -261,7 +261,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e562bdb4056b4e729fb531c8b1bec63, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 4
+  speed: 8
   inertia: 5
   inertiaRotation: 5
   shootDistance: 4
@@ -276,6 +276,7 @@ MonoBehaviour:
     type: 2}
   bombPrefab: {fileID: 114181041521113404, guid: 4f785f5b503d84f1c931bb09c25e7774,
     type: 2}
+  lerpAmountForReconciliation: 0.25
   rocketPickupMaterial: {fileID: 2100000, guid: 7698eb4d6e8224719999242258f095f1,
     type: 2}
   bombPickupMaterial: {fileID: 2100000, guid: f85d5ba97c2ca44c185f832d2e171712, type: 2}
