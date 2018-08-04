@@ -3,5 +3,5 @@ using System.Collections;
 
 public enum PlayerAction
 {
-	NONE, PRIMARY, SECONDARY
+	NONE, PRIMARY, SECONDARY, BOOST
 }

@@ -39,7 +39,7 @@ namespace Jerre.Networking
 
 		private CharacterController characterController;
 
-        public float speed = 2f, inertia = 1f, inertiaRotation = 10f;
+        public float speed = 2f, inertia = 1f, inertiaRotation = 10f, boostSpeed = 20f;
         private Vector3 oldSpeedVector = Vector3.zero;
 
         private float cTimeSinceInputProcessed;
@@ -115,7 +115,7 @@ namespace Jerre.Networking
                     var timeRemainingForOutdatedInput = timeBetweenInputFetching -
                         (timeSinceInputFetched - Time.deltaTime);
                     deltaTime -= timeRemainingForOutdatedInput;
-                    Move(playerInput.MoveDir3D, timeRemainingForOutdatedInput);
+                    Move(playerInput.MoveDir3D, timeRemainingForOutdatedInput, playerInput.Boosting);
                     RotateTo(playerInput.LookDir3D);
 
                     var inputSequence = nextInputSequence++;
@@ -136,7 +136,7 @@ namespace Jerre.Networking
                     }
                     playerInput = playerInputHistory.Peek();
                 }
-                Move(playerInput.MoveDir3D, deltaTime);
+                Move(playerInput.MoveDir3D, deltaTime, playerInput.Boosting);
                 RotateTo(playerInput.LookDir3D);
 
                 if (timeSinceLastPacketSent >= timeBetweenPacketsFromServerToClient)
@@ -169,7 +169,7 @@ namespace Jerre.Networking
                     );
                     for (var i = 0; i < inputsToReconcile.Length; i++) {
                         var input = inputsToReconcile[i];
-                        Move(input.MoveDir3D, timeBetweenInputFetching);
+                        Move(input.MoveDir3D, timeBetweenInputFetching, input.Boosting);
                         RotateTo(input.LookDir3D);
                     }
                     transform.position = clientPosition;
@@ -212,7 +212,7 @@ namespace Jerre.Networking
                         saTimeSinceInputProcessed - Time.deltaTime);
                     deltaTime -= timeRemainingForOutdatedInput;
 
-                    Move(playerInput.MoveDir3D, timeRemainingForOutdatedInput);
+                    Move(playerInput.MoveDir3D, timeRemainingForOutdatedInput, playerInput.Boosting);
                     RotateTo(playerInput.LookDir3D);
 
                     validatedPlayerInputs.Push(new ValidatedPlayerInput(
@@ -236,7 +236,7 @@ namespace Jerre.Networking
                     }
                 }
 
-                Move(playerInput.MoveDir3D, deltaTime);
+                Move(playerInput.MoveDir3D, deltaTime, playerInput.Boosting);
                 RotateTo(playerInput.LookDir3D);
 
                 if (saTimeSinceLastPacketSent >= timeBetweenPacketsFromServerToClient) {
@@ -270,7 +270,7 @@ namespace Jerre.Networking
 
         private void MyUpdate(float deltaTime, MJPlayerController.PlayerInputForPacket playerInput) {
             //Move client side prediction
-            Move(playerInput.MoveDir3D, deltaTime);
+            Move(playerInput.MoveDir3D, deltaTime, playerInput.Boosting);
             RotateTo(playerInput.LookDir3D);
             var clientPredictedPosition = transform.position;
             var clientPredictedRotation = transform.rotation;
@@ -279,7 +279,7 @@ namespace Jerre.Networking
             transform.position = predictionServer.position;
             transform.rotation = predictionServer.rotation;
             oldSpeedVector = predictionServer.speed;
-            Move(playerInput.MoveDir3D, deltaTime);
+            Move(playerInput.MoveDir3D, deltaTime, playerInput.Boosting);
             RotateTo(playerInput.LookDir3D);
             predictionServer = new PredictionServer(transform.position, transform.rotation, oldSpeedVector);
 
@@ -290,8 +290,8 @@ namespace Jerre.Networking
             oldSpeedVector = Vector3.Lerp(tempSpeed, predictionServer.speed, lerpAmountForReconciliation);
         }
 
-        private void Move(Vector3 direction, float deltaTime) {
-            var newSpeedVector = direction * speed * deltaTime;
+        private void Move(Vector3 direction, float deltaTime, bool boosting) {
+            var newSpeedVector = direction * (boosting ? boostSpeed : speed) * deltaTime;
             // characterController.Move(newSpeedVector);
             var angle = Mathf.Clamp(Vector3.Angle(oldSpeedVector.normalized, newSpeedVector.normalized), 5, 175);
             float rotationalInertia = (1f - angle / 180f) * inertiaRotation;
@@ -385,6 +385,8 @@ namespace Jerre.Networking
                        && hasReleaseSecondaryButton) {
                 playerAction = PlayerAction.SECONDARY;
                 hasReleaseSecondaryButton = false;
+            } else if (Input.GetKey(KeyCode.M)) {
+                playerAction = PlayerAction.BOOST;
             }
             return new PlayerInputForPacket (inputSequence, 
                                    packetSequence, 
@@ -576,6 +578,10 @@ namespace Jerre.Networking
                 get { return new Vector3(lookDir.x, 0, lookDir.y); }
             }
             public PlayerAction playerAction;
+
+            public bool Boosting {
+                get { return playerAction == PlayerAction.BOOST; }
+            }
 
             public PlayerInputForPacket(int inputSequence, int packetSequence, Vector3 position, Quaternion rotation, Vector2 moveDir, Vector2 lookDir, PlayerAction playerAction, Vector3 speed)
             {

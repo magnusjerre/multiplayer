@@ -17,6 +17,10 @@ public struct PlayerInput
     }
     public PlayerAction playerAction;
 
+    public bool Boosting { 
+        get { return playerAction == PlayerAction.BOOST; }
+    }
+
 
     public PlayerInput(int inputSequence, Vector3 position, Quaternion rotation, Vector2 moveDir, Vector2 lookDir, PlayerAction playerAction, Vector3 speed)
     {
