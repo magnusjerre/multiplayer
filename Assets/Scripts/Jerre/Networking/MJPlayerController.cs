@@ -364,36 +364,43 @@ namespace Jerre.Networking
                     PlayerAction.NONE,
                     oldSpeedVector);
             }
-            //var x = Input.GetAxis("Horizontal");
-            var x = Input.GetKey(KeyCode.A) ? -1 : Input.GetKey(KeyCode.D) ? 1 : 0;
-            //var y = Input.GetAxis("Vertical");
-            var y = Input.GetKey(KeyCode.W) ? 1 : Input.GetKey(KeyCode.S) ? -1 : 0;
+            var moveHorizontal = Input.GetAxis(InputNames.HORIZONTAL_MOVEMENT);
+            var moveVertical = Input.GetAxis(InputNames.VERTICAL_MOVEMENT);
             var playerAction = PlayerAction.NONE;
-            if (!Input.GetKey(KeyCode.Space)) {
+            var aimHorizontal = Input.GetAxis(InputNames.AIM_HORIZONTAL);
+            var aimVertical = Input.GetAxis(InputNames.AIM_VERTICAL);
+            
+            var actionPrimary = Input.GetButton(InputNames.ACTION_PRIMARY);
+            var actionSecondary = Input.GetButton(InputNames.ACTION_SECONDARY);
+            var boost = Input.GetAxis(InputNames.ACTION_BOOST);
+            if (boost == 0f) {
+                boost = (Input.GetButton(InputNames.ACTION_BOOST) ? 1f : 0f);
+            }
+            if (!actionPrimary) {
                 hasReleasedShootButton = true;
             }
-            if (!Input.GetKey(KeyCode.V)) {
+            if (!actionSecondary) {
                 hasReleaseSecondaryButton = true;
             }
 
-            if (Input.GetKey(KeyCode.Space) && hasReleasedShootButton)
+            if (actionPrimary && hasReleasedShootButton)
             {
                 playerAction = PlayerAction.PRIMARY;
                 hasReleasedShootButton = false;
-            } else if (Input.GetKey(KeyCode.V) 
+            } else if (actionSecondary
                        && playerAction == PlayerAction.NONE 
                        && hasReleaseSecondaryButton) {
                 playerAction = PlayerAction.SECONDARY;
                 hasReleaseSecondaryButton = false;
-            } else if (Input.GetKey(KeyCode.M)) {
+            } else if (boost > 0.2f) {
                 playerAction = PlayerAction.BOOST;
             }
             return new PlayerInputForPacket (inputSequence, 
                                    packetSequence, 
                                    transform.position, 
                                    transform.rotation, 
-                                   new Vector2(x, y).normalized, 
-                                   new Vector2(x, y).normalized,
+                                   new Vector2(moveHorizontal, moveVertical).normalized, 
+                                   new Vector2(moveHorizontal, moveVertical).normalized,
                                    playerAction,
                                    oldSpeedVector);
         }
